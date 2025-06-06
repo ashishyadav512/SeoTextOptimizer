@@ -49,24 +49,69 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     
     if (keywords.length > 0) {
       keywords.slice(0, 8).forEach((keyword: any) => {
-        suggestedKeywords.push({
-          term: keyword.text || '',
-          volume: `${Math.floor(Math.random() * 5000 + 500)} searches/mo`,
-          difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
-          inserted: false,
-        });
+        if (keyword.text && keyword.text.trim()) {
+          suggestedKeywords.push({
+            term: keyword.text,
+            volume: `${Math.floor(Math.random() * 5000 + 500)} searches/mo`,
+            difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
+            inserted: false,
+          });
+        }
       });
-    } else {
-      // Fallback keyword generation based on content analysis
-      const commonWords = extractCommonPhrases(content);
-      commonWords.slice(0, 6).forEach(phrase => {
+    }
+    
+    // Always use content-based analysis for keyword suggestions
+    const contentKeywords = extractCommonPhrases(content);
+    contentKeywords.forEach((keyword: string) => {
+      if (!suggestedKeywords.some(k => k.term.toLowerCase() === keyword.toLowerCase())) {
         suggestedKeywords.push({
-          term: phrase,
+          term: keyword,
           volume: `${Math.floor(Math.random() * 3000 + 200)} searches/mo`,
           difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
           inserted: false,
         });
+      }
+    });
+
+    // Ensure we always have at least some keyword suggestions
+    if (suggestedKeywords.length === 0) {
+      // Generate basic keywords from the most frequent meaningful words
+      const words = content.toLowerCase().match(/\b\w+\b/g) || [];
+      const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those']);
+
+      const wordCount = new Map<string, number>();
+      words.forEach(word => {
+        if (word.length > 4 && !stopWords.has(word)) {
+          wordCount.set(word, (wordCount.get(word) || 0) + 1);
+        }
       });
+
+      const topWords = Array.from(wordCount.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([word]) => word);
+
+      topWords.forEach((keyword: string) => {
+        suggestedKeywords.push({
+          term: keyword,
+          volume: `${Math.floor(Math.random() * 2000 + 100)} searches/mo`,
+          difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
+          inserted: false,
+        });
+      });
+
+      // Add generic keywords if still empty
+      if (suggestedKeywords.length === 0) {
+        const genericKeywords = ['content optimization', 'SEO strategy', 'digital marketing', 'online presence', 'search visibility'];
+        genericKeywords.slice(0, 3).forEach((keyword: string) => {
+          suggestedKeywords.push({
+            term: keyword,
+            volume: `${Math.floor(Math.random() * 1500 + 50)} searches/mo`,
+            difficulty: ['Low', 'Medium'][Math.floor(Math.random() * 2)] as 'Low' | 'Medium',
+            inserted: false,
+          });
+        });
+      }
     }
 
     // Calculate SEO score based on multiple factors
@@ -186,28 +231,54 @@ function estimateSyllables(word: string): number {
   return matches ? matches.length : 1;
 }
 
+
+
+
+
 function extractCommonPhrases(content: string): string[] {
   const words = content.toLowerCase().match(/\b\w+\b/g) || [];
   const phrases: Map<string, number> = new Map();
+  const singleWords: Map<string, number> = new Map();
+  
+  // Skip common stop words
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'ours', 'theirs', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'now']);
+  
+  // Count meaningful single words
+  words.forEach(word => {
+    if (word.length > 3 && !stopWords.has(word)) {
+      singleWords.set(word, (singleWords.get(word) || 0) + 1);
+    }
+  });
   
   // Extract 2-3 word phrases
   for (let i = 0; i < words.length - 1; i++) {
-    if (words[i].length > 3 && words[i + 1].length > 3) {
+    if (words[i].length > 3 && words[i + 1].length > 3 && 
+        !stopWords.has(words[i]) && !stopWords.has(words[i + 1])) {
       const phrase = `${words[i]} ${words[i + 1]}`;
       phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
     }
     
-    if (i < words.length - 2 && words[i].length > 3 && words[i + 1].length > 3 && words[i + 2].length > 3) {
+    if (i < words.length - 2 && words[i].length > 3 && words[i + 1].length > 3 && words[i + 2].length > 3 &&
+        !stopWords.has(words[i]) && !stopWords.has(words[i + 1]) && !stopWords.has(words[i + 2])) {
       const phrase = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
       phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
     }
   }
   
-  return Array.from(phrases.entries())
-    .filter(([phrase, count]) => count > 1 && phrase.length > 6)
+  // Combine phrases and single words, prioritizing phrases
+  const phraseSuggestions = Array.from(phrases.entries())
+    .filter(([phrase, count]) => count >= 1 && phrase.length > 6)
     .sort((a, b) => b[1] - a[1])
     .map(([phrase]) => phrase)
-    .slice(0, 10);
+    .slice(0, 6);
+  
+  const wordSuggestions = Array.from(singleWords.entries())
+    .filter(([word, count]) => count >= 2 && word.length > 4)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+    .slice(0, 4);
+  
+  return [...phraseSuggestions, ...wordSuggestions].slice(0, 8);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
