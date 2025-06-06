@@ -257,31 +257,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 function insertKeywordIntelligently(content: string, keyword: string, position?: number): string {
-  const sentences = content.split(/(?<=[.!?])\s+/);
+  // Check if keyword already exists in content to avoid duplication
+  const keywordRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+  if (keywordRegex.test(content)) {
+    return content; // Don't insert if keyword already exists
+  }
+
+  const sentences = content.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  
+  if (sentences.length === 0) {
+    return `${keyword} ${content}`;
+  }
   
   if (position !== undefined && position >= 0 && position < sentences.length) {
     // Insert at specific position
-    const sentence = sentences[position];
-    const words = sentence.split(' ');
-    const insertPos = Math.floor(words.length / 2);
-    words.splice(insertPos, 0, keyword);
-    sentences[position] = words.join(' ');
+    return insertKeywordInSentence(sentences, position, keyword);
   } else {
-    // Find best position automatically
-    const bestSentenceIndex = Math.floor(sentences.length * 0.3); // Insert in first third
-    const sentence = sentences[bestSentenceIndex];
-    const words = sentence.split(' ');
-    const insertPos = Math.min(Math.floor(words.length / 2), words.length - 1);
+    // Find best position automatically using multiple strategies
+    const bestPosition = findOptimalInsertionPosition(sentences, keyword, content);
+    return insertKeywordInSentence(sentences, bestPosition, keyword);
+  }
+}
+
+function findOptimalInsertionPosition(sentences: string[], keyword: string, content: string): number {
+  // Strategy 1: Find a sentence that contextually fits the keyword
+  const keywordWords = keyword.toLowerCase().split(' ');
+  let bestScore = -1;
+  let bestIndex = 0;
+  
+  sentences.forEach((sentence, index) => {
+    const sentenceWords = sentence.toLowerCase().split(/\W+/);
+    let contextScore = 0;
     
-    // Try to insert naturally
-    if (words[insertPos] && !words[insertPos].match(/[.!?]$/)) {
-      words.splice(insertPos, 0, keyword);
-    } else {
-      words.splice(insertPos + 1, 0, keyword);
+    // Score based on semantic proximity
+    keywordWords.forEach(kw => {
+      sentenceWords.forEach(sw => {
+        if (sw.includes(kw) || kw.includes(sw)) {
+          contextScore += 2;
+        }
+        // Check for related terms (simple similarity)
+        if (sw.length > 3 && kw.length > 3 && 
+            (sw.substring(0, 3) === kw.substring(0, 3) || 
+             sw.substring(-3) === kw.substring(-3))) {
+          contextScore += 1;
+        }
+      });
+    });
+    
+    // Prefer sentences in the first half but not the very first sentence
+    if (index > 0 && index < sentences.length * 0.6) {
+      contextScore += 1;
     }
     
-    sentences[bestSentenceIndex] = words.join(' ');
+    // Prefer longer sentences (more room for natural insertion)
+    if (sentence.split(' ').length > 8) {
+      contextScore += 1;
+    }
+    
+    if (contextScore > bestScore) {
+      bestScore = contextScore;
+      bestIndex = index;
+    }
+  });
+  
+  // Fallback: insert in the first third if no good context found
+  if (bestScore === -1) {
+    bestIndex = Math.min(Math.floor(sentences.length * 0.3), 1);
   }
   
+  return bestIndex;
+}
+
+function insertKeywordInSentence(sentences: string[], sentenceIndex: number, keyword: string): string {
+  const sentence = sentences[sentenceIndex];
+  const words = sentence.split(' ');
+  
+  // Find the best position within the sentence
+  let insertPos = findBestWordPosition(words, keyword);
+  
+  // Create natural insertion with proper spacing and punctuation
+  const insertedSentence = createNaturalInsertion(words, keyword, insertPos);
+  sentences[sentenceIndex] = insertedSentence;
+  
   return sentences.join(' ');
+}
+
+function findBestWordPosition(words: string[], keyword: string): number {
+  // Avoid inserting at the very beginning or end
+  const minPos = 1;
+  const maxPos = Math.max(words.length - 2, 1);
+  
+  // Look for transition words or phrases where insertion would be natural
+  const transitionWords = ['and', 'but', 'however', 'moreover', 'furthermore', 'additionally', 'also', 'because', 'since', 'while', 'when', 'after', 'before'];
+  
+  for (let i = minPos; i <= maxPos; i++) {
+    const word = words[i]?.toLowerCase().replace(/[^\w]/g, '');
+    if (transitionWords.includes(word)) {
+      return i + 1; // Insert after transition word
+    }
+  }
+  
+  // Look for commas or other natural breaking points
+  for (let i = minPos; i <= maxPos; i++) {
+    if (words[i]?.includes(',')) {
+      return i + 1; // Insert after comma
+    }
+  }
+  
+  // Default to inserting around the middle, but after articles/prepositions
+  let defaultPos = Math.floor(words.length / 2);
+  const articlesPrepositions = ['the', 'a', 'an', 'in', 'on', 'at', 'by', 'for', 'with', 'to', 'of'];
+  
+  // Move past articles/prepositions if at default position
+  while (defaultPos < words.length - 1 && 
+         articlesPrepositions.includes(words[defaultPos]?.toLowerCase().replace(/[^\w]/g, ''))) {
+    defaultPos++;
+  }
+  
+  return Math.max(minPos, Math.min(defaultPos, maxPos));
+}
+
+function createNaturalInsertion(words: string[], keyword: string, insertPos: number): string {
+  const keywordWords = keyword.split(' ');
+  
+  // Check if we need connecting words for more natural flow
+  const prevWord = words[insertPos - 1]?.toLowerCase().replace(/[^\w]/g, '');
+  const nextWord = words[insertPos]?.toLowerCase().replace(/[^\w]/g, '');
+  
+  // Add natural connectors when appropriate
+  let insertion = keywordWords;
+  
+  // If inserting after certain words, add natural connectors
+  if (prevWord && ['which', 'that', 'who'].includes(prevWord)) {
+    insertion = ['also', ...keywordWords];
+  } else if (nextWord && ['is', 'are', 'was', 'were'].includes(nextWord)) {
+    insertion = [...keywordWords, 'that'];
+  }
+  
+  // Insert the keyword(s) with proper spacing
+  const result = [
+    ...words.slice(0, insertPos),
+    ...insertion,
+    ...words.slice(insertPos)
+  ];
+  
+  return result.join(' ');
 }
