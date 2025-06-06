@@ -200,9 +200,44 @@ export default function SEOAnalyzer() {
   const handleInsertSelectedKeywords = async () => {
     if (selectedKeywords.length === 0) return;
     
+    let currentContent = optimizedContent || content;
+    const insertedKeywordsTemp: string[] = [];
+    
     for (const keyword of selectedKeywords) {
-      await handleInsertKeyword(keyword);
+      try {
+        const response = await apiRequest("POST", "/api/insert-keyword", {
+          content: currentContent,
+          keyword,
+        });
+        const data = await response.json() as { optimizedContent: string };
+        currentContent = data.optimizedContent;
+        insertedKeywordsTemp.push(keyword);
+      } catch (error) {
+        console.error(`Failed to insert keyword ${keyword}:`, error);
+      }
     }
+    
+    if (insertedKeywordsTemp.length > 0) {
+      setOptimizedContent(currentContent);
+      setInsertedKeywords(prev => [...prev, ...insertedKeywordsTemp]);
+      
+      // Update all inserted keywords in analysis results
+      if (analysisResults) {
+        const updatedKeywords = analysisResults.suggestedKeywords.map(k => 
+          insertedKeywordsTemp.includes(k.term) ? { ...k, inserted: true } : k
+        );
+        setAnalysisResults({
+          ...analysisResults,
+          suggestedKeywords: updatedKeywords,
+        });
+      }
+      
+      toast({
+        title: "Keywords Inserted",
+        description: `${insertedKeywordsTemp.length} keywords added to your content.`,
+      });
+    }
+    
     setSelectedKeywords([]);
   };
 
@@ -350,38 +385,57 @@ export default function SEOAnalyzer() {
               </CardContent>
             </Card>
 
-            {/* Preview Card */}
-            {(optimizedContent || insertedKeywords.length > 0) && (
+            {/* Preview Card - Always show when content exists */}
+            {content.trim() && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Optimized Preview</CardTitle>
+                    <CardTitle className="flex items-center">
+                      {insertedKeywords.length > 0 ? "Optimized Preview" : "Content Preview"}
+                      {insertedKeywords.length > 0 && (
+                        <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700">
+                          {insertedKeywords.length} keywords added
+                        </Badge>
+                      )}
+                    </CardTitle>
                     <div className="flex items-center space-x-2">
                       <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
                         <Copy className="w-4 h-4 mr-2" />
-                        Copy
+                        Copy {insertedKeywords.length > 0 ? "Optimized" : "Original"}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={handleRevertChanges}>
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Revert
-                      </Button>
+                      {insertedKeywords.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleRevertChanges}>
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          Revert Changes
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div 
-                    className="prose prose-sm max-w-none p-4 bg-muted rounded-lg border min-h-[200px]"
-                    dangerouslySetInnerHTML={{
-                      __html: highlightKeywords(optimizedContent || content, insertedKeywords)
-                    }}
-                  />
-                  
-                  {insertedKeywords.length > 0 && (
-                    <div className="mt-4 flex items-center space-x-4 text-sm text-muted-foreground">
-                      <span>{insertedKeywords.length} keywords inserted</span>
-                      <span>+{Math.round(insertedKeywords.length * 3.8)}% SEO improvement</span>
-                    </div>
-                  )}
+                  <div className="space-y-4">
+                    <div 
+                      className="prose prose-sm max-w-none p-4 bg-muted rounded-lg border min-h-[200px] whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{
+                        __html: highlightKeywords(optimizedContent || content, insertedKeywords)
+                      }}
+                    />
+                    
+                    {insertedKeywords.length > 0 && (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center text-green-700 dark:text-green-300">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            <span className="font-medium">Keywords Added:</span>
+                            <span className="ml-2">{insertedKeywords.join(", ")}</span>
+                          </div>
+                          <span className="text-green-600 dark:text-green-400 font-medium">
+                            +{Math.round(insertedKeywords.length * 3.8)}% SEO boost
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}

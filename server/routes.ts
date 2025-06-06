@@ -306,20 +306,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/insert-keyword", async (req, res) => {
     try {
       const request = z.object({
-        content: z.string(),
-        keyword: z.string(),
+        content: z.string().min(1, "Content is required"),
+        keyword: z.string().min(1, "Keyword is required"),
         position: z.number().optional(),
       }).parse(req.body);
 
+      console.log(`Inserting keyword "${request.keyword}" into content (${request.content.length} chars)`);
+      
       const optimizedContent = insertKeywordIntelligently(request.content, request.keyword, request.position);
       
-      res.json({ optimizedContent });
+      console.log(`Result: ${optimizedContent.length} chars, keyword inserted: ${optimizedContent.includes(request.keyword)}`);
+      
+      res.json({ 
+        optimizedContent,
+        originalLength: request.content.length,
+        newLength: optimizedContent.length,
+        keywordInserted: optimizedContent.includes(request.keyword)
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("Validation error:", error.errors);
         return res.status(400).json({ message: "Invalid request data", errors: error.errors });
       }
       
-      res.status(500).json({ message: "Failed to insert keyword" });
+      console.error("Keyword insertion error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      res.status(500).json({ message: "Failed to insert keyword", error: errorMessage });
     }
   });
 
