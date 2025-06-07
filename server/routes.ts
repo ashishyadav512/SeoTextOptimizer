@@ -573,13 +573,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const optimizedContent = insertKeywordIntelligently(request.content, request.keyword, request.position);
       
-      console.log(`Result: ${optimizedContent.length} chars, keyword inserted: ${optimizedContent.includes(request.keyword)}`);
+      // Clean up any repetitions that might have been created
+      const cleanedContent = cleanupRepetitions(optimizedContent);
+      
+      console.log(`Result: ${cleanedContent.length} chars, keyword inserted: ${cleanedContent.includes(request.keyword)}`);
       
       res.json({ 
-        optimizedContent,
+        optimizedContent: cleanedContent,
         originalLength: request.content.length,
-        newLength: optimizedContent.length,
-        keywordInserted: optimizedContent.includes(request.keyword)
+        newLength: cleanedContent.length,
+        keywordInserted: cleanedContent.includes(request.keyword)
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -608,11 +611,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const skippedKeywords: string[] = [];
       
       for (const keyword of request.keywords) {
-        const keywordLower = keyword.toLowerCase();
+        const keywordLower = keyword.toLowerCase().trim();
         const contentLower = currentContent.toLowerCase();
         
-        // Check if keyword already exists
-        if (contentLower.includes(keywordLower)) {
+        // Enhanced duplicate checking for bulk insertion
+        let shouldSkip = false;
+        
+        if (keyword.includes(' ')) {
+          // For phrases, check exact match
+          if (contentLower.includes(keywordLower)) {
+            shouldSkip = true;
+          } else {
+            // Check for word overlap to prevent "promotion promotion"
+            const keywordWords = keywordLower.split(' ');
+            for (const word of keywordWords) {
+              if (word.length > 3) {
+                const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                const matches = (currentContent.match(wordRegex) || []).length;
+                if (matches >= 2) {
+                  shouldSkip = true;
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          // For single words, check if already exists
+          const wordRegex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          if (wordRegex.test(currentContent)) {
+            shouldSkip = true;
+          }
+        }
+        
+        if (shouldSkip) {
           skippedKeywords.push(keyword);
           continue;
         }
@@ -620,15 +651,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Insert keyword
         const newContent = insertKeywordIntelligently(currentContent, keyword);
         
-        // Verify insertion was successful
-        if (newContent.length > currentContent.length && 
-            newContent.toLowerCase().includes(keywordLower)) {
-          currentContent = newContent;
-          insertedKeywords.push(keyword);
+        // Verify insertion was successful and no repetition occurred
+        if (newContent.length > currentContent.length) {
+          // Additional check for repetition patterns
+          const repetitionPattern = new RegExp(`\\b${keywordLower.split(' ')[0]}\\s+${keywordLower.split(' ')[0]}\\b`, 'gi');
+          if (!repetitionPattern.test(newContent)) {
+            currentContent = newContent;
+            insertedKeywords.push(keyword);
+          } else {
+            console.log(`Skipping "${keyword}" - would create repetition`);
+            skippedKeywords.push(keyword);
+          }
         } else {
           skippedKeywords.push(keyword);
         }
       }
+      
+      // Post-insertion cleanup to remove any repetition patterns
+      currentContent = cleanupRepetitions(currentContent);
       
       console.log(`Bulk insertion complete: ${insertedKeywords.length} inserted, ${skippedKeywords.length} skipped`);
       
@@ -656,22 +696,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
+function cleanupRepetitions(content: string): string {
+  // Remove common repetition patterns that might occur during keyword insertion
+  let cleanedContent = content;
+  
+  // Pattern 1: Remove immediate word repetitions like "promotion promotion"
+  cleanedContent = cleanedContent.replace(/\b(\w+)\s+\1\b/gi, '$1');
+  
+  // Pattern 2: Remove phrase repetitions like "promotion especially promotion especially"
+  cleanedContent = cleanedContent.replace(/\b(\w+\s+\w+)\s+\1\b/gi, '$1');
+  
+  // Pattern 3: Remove triple repetitions
+  cleanedContent = cleanedContent.replace(/\b(\w+)\s+\1\s+\1\b/gi, '$1');
+  
+  // Pattern 4: Fix complex repetition patterns like "promotion, promotion especially after promotion especially especially"
+  cleanedContent = cleanedContent.replace(/\b(\w+),\s*\1\s+(\w+)\s+after\s+\1\s+\2\s+\2\b/gi, '$1 $2');
+  
+  // Pattern 5: Remove awkward constructions like "especially especially"
+  cleanedContent = cleanedContent.replace(/\b(especially|particularly|specifically|generally|after|before|during)\s+\1\b/gi, '$1');
+  
+  // Pattern 6: Clean up punctuation repetitions
+  cleanedContent = cleanedContent.replace(/,\s*,+/g, ',');
+  cleanedContent = cleanedContent.replace(/\s+/g, ' ');
+  
+  // Pattern 7: Fix specific patterns from your example
+  cleanedContent = cleanedContent.replace(/\b(\w+),\s*\1\s+(\w+)\s+after\s+\1\s+\2/gi, '$1 $2');
+  
+  return cleanedContent.trim();
+}
+
 function insertKeywordIntelligently(content: string, keyword: string, position?: number): string {
-  // Simplified and more accurate duplicate checking
+  // Enhanced duplicate checking to prevent repetition
   const keywordLower = keyword.toLowerCase().trim();
   const contentLower = content.toLowerCase();
   
-  // For phrases (multiple words), check if exact phrase exists
+  // Check for exact keyword or phrase matches
   if (keyword.includes(' ')) {
+    // For phrases, check exact match and partial overlaps
     if (contentLower.includes(keywordLower)) {
       console.log(`Keyword phrase "${keyword}" already exists in content`);
       return content;
     }
+    
+    // Check for overlapping words to prevent "promotion promotion"
+    const keywordWords = keywordLower.split(' ');
+    for (const word of keywordWords) {
+      if (word.length > 3) {
+        const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        const matches = (content.match(wordRegex) || []).length;
+        if (matches >= 2) { // Already appears twice or more
+          console.log(`Word "${word}" from keyword "${keyword}" already appears ${matches} times in content`);
+          return content;
+        }
+      }
+    }
   } else {
-    // For single words, use word boundary checking
+    // For single words, check word boundaries and frequency
     const wordBoundaryRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-    if (wordBoundaryRegex.test(content)) {
-      console.log(`Keyword "${keyword}" already exists in content`);
+    const matches = (content.match(wordBoundaryRegex) || []).length;
+    if (matches >= 1) {
+      console.log(`Keyword "${keyword}" already appears ${matches} times in content`);
       return content;
     }
   }
