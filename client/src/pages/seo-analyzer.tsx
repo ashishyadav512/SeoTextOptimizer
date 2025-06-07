@@ -197,34 +197,28 @@ export default function SEOAnalyzer() {
     );
   };
 
-  const handleInsertSelectedKeywords = async () => {
-    if (selectedKeywords.length === 0) return;
-    
-    let currentContent = optimizedContent || content;
-    const insertedKeywordsTemp: string[] = [];
-    
-    for (const keyword of selectedKeywords) {
-      try {
-        const response = await apiRequest("POST", "/api/insert-keyword", {
-          content: currentContent,
-          keyword,
-        });
-        const data = await response.json() as { optimizedContent: string };
-        currentContent = data.optimizedContent;
-        insertedKeywordsTemp.push(keyword);
-      } catch (error) {
-        console.error(`Failed to insert keyword ${keyword}:`, error);
-      }
-    }
-    
-    if (insertedKeywordsTemp.length > 0) {
-      setOptimizedContent(currentContent);
-      setInsertedKeywords(prev => [...prev, ...insertedKeywordsTemp]);
+  // Bulk keyword insertion mutation
+  const bulkInsertMutation = useMutation({
+    mutationFn: async ({ keywords }: { keywords: string[] }) => {
+      const response = await apiRequest("POST", "/api/insert-keywords-bulk", {
+        content: optimizedContent || content,
+        keywords,
+      });
+      return response.json() as Promise<{ 
+        optimizedContent: string; 
+        insertedKeywords: string[]; 
+        skippedKeywords: string[];
+        totalInserted: number;
+      }>;
+    },
+    onSuccess: (data) => {
+      setOptimizedContent(data.optimizedContent);
+      setInsertedKeywords(prev => [...prev, ...data.insertedKeywords]);
       
-      // Update all inserted keywords in analysis results
+      // Update inserted keywords in analysis results
       if (analysisResults) {
         const updatedKeywords = analysisResults.suggestedKeywords.map(k => 
-          insertedKeywordsTemp.includes(k.term) ? { ...k, inserted: true } : k
+          data.insertedKeywords.includes(k.term) ? { ...k, inserted: true } : k
         );
         setAnalysisResults({
           ...analysisResults,
@@ -232,12 +226,31 @@ export default function SEOAnalyzer() {
         });
       }
       
+      const successMessage = data.totalInserted > 0 
+        ? `${data.totalInserted} keywords inserted successfully` 
+        : "No new keywords were added";
+      
+      const warningMessage = data.skippedKeywords.length > 0 
+        ? ` (${data.skippedKeywords.length} already existed)` 
+        : "";
+      
       toast({
-        title: "Keywords Inserted",
-        description: `${insertedKeywordsTemp.length} keywords added to your content.`,
+        title: "Bulk Insertion Complete",
+        description: successMessage + warningMessage,
       });
-    }
-    
+    },
+    onError: (error) => {
+      toast({
+        title: "Bulk Insertion Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleInsertSelectedKeywords = () => {
+    if (selectedKeywords.length === 0) return;
+    bulkInsertMutation.mutate({ keywords: selectedKeywords });
     setSelectedKeywords([]);
   };
 
@@ -516,10 +529,17 @@ export default function SEOAnalyzer() {
                         <Button 
                           size="sm"
                           onClick={handleInsertSelectedKeywords}
-                          disabled={insertKeywordMutation.isPending}
+                          disabled={bulkInsertMutation.isPending || insertKeywordMutation.isPending}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
-                          Insert Selected
+                          {bulkInsertMutation.isPending ? (
+                            <>
+                              <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                              Inserting...
+                            </>
+                          ) : (
+                            `Insert Selected (${selectedKeywords.length})`
+                          )}
                         </Button>
                       </div>
                     </div>

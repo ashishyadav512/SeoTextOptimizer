@@ -471,6 +471,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Insert multiple keywords in one operation  
+  app.post("/api/insert-keywords-bulk", async (req, res) => {
+    try {
+      const request = z.object({
+        content: z.string().min(1, "Content is required"),
+        keywords: z.array(z.string().min(1)).min(1, "At least one keyword is required"),
+      }).parse(req.body);
+
+      console.log(`Bulk inserting ${request.keywords.length} keywords into content`);
+      
+      let currentContent = request.content;
+      const insertedKeywords: string[] = [];
+      const skippedKeywords: string[] = [];
+      
+      for (const keyword of request.keywords) {
+        const keywordLower = keyword.toLowerCase();
+        const contentLower = currentContent.toLowerCase();
+        
+        // Check if keyword already exists
+        if (contentLower.includes(keywordLower)) {
+          skippedKeywords.push(keyword);
+          continue;
+        }
+        
+        // Insert keyword
+        const newContent = insertKeywordIntelligently(currentContent, keyword);
+        
+        // Verify insertion was successful
+        if (newContent.length > currentContent.length && 
+            newContent.toLowerCase().includes(keywordLower)) {
+          currentContent = newContent;
+          insertedKeywords.push(keyword);
+        } else {
+          skippedKeywords.push(keyword);
+        }
+      }
+      
+      console.log(`Bulk insertion complete: ${insertedKeywords.length} inserted, ${skippedKeywords.length} skipped`);
+      
+      res.json({ 
+        optimizedContent: currentContent,
+        insertedKeywords,
+        skippedKeywords,
+        totalInserted: insertedKeywords.length,
+        originalLength: request.content.length,
+        newLength: currentContent.length
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error("Validation error:", error.errors);
+        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+      }
+      
+      console.error("Bulk keyword insertion error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      res.status(500).json({ message: "Failed to insert keywords", error: errorMessage });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
