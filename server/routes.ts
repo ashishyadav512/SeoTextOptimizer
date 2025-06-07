@@ -39,10 +39,38 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0);
 
-    // Calculate readability score (simplified Flesch Reading Ease)
-    const avgWordsPerSentence = words.length / Math.max(sentences.length, 1);
+    // Enhanced readability calculation with keyword optimization balance
+    const validSentences = sentences.filter(s => s.trim().length > 5);
+    const avgWordsPerSentence = words.length / Math.max(validSentences.length, 1);
     const avgSyllablesPerWord = words.reduce((sum, word) => sum + estimateSyllables(word), 0) / Math.max(words.length, 1);
-    const readabilityScore = Math.max(0, Math.min(100, 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord)));
+    
+    // Base Flesch Reading Ease calculation
+    let readabilityScore = 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord);
+    
+    // Apply content quality adjustments to balance with SEO
+    if (words.length < 100) {
+      readabilityScore = Math.max(readabilityScore, 40); // Boost short content readability
+    }
+    
+    // Readability bonus for good sentence variety
+    const sentenceLengths = validSentences.map(s => s.split(/\s+/).length);
+    const sentenceVariety = sentenceLengths.length > 1 ? 
+      Math.max(...sentenceLengths) - Math.min(...sentenceLengths) : 0;
+    
+    if (sentenceVariety >= 5 && sentenceVariety <= 15) {
+      readabilityScore += 5; // Bonus for good sentence variety
+    }
+    
+    // Readability bonus for transition words and natural flow
+    const transitionWords = ['however', 'moreover', 'furthermore', 'additionally', 'therefore', 'consequently', 'meanwhile', 'similarly', 'likewise'];
+    const transitionCount = transitionWords.reduce((count, word) => 
+      count + (content.toLowerCase().includes(word) ? 1 : 0), 0);
+    
+    if (transitionCount >= 1) {
+      readabilityScore += Math.min(transitionCount * 2, 8); // Bonus for natural transitions
+    }
+    
+    readabilityScore = Math.max(0, Math.min(100, Math.round(readabilityScore)));
 
     // Generate keyword suggestions from API results or fallback
     const suggestedKeywords: KeywordSuggestion[] = [];
@@ -199,17 +227,22 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     
     seoScore += keywordScore + keywordPresenceBonus + qualityKeywordBonus;
     
-    // Readability scoring (0-20 points)
-    if (readabilityScore >= 80) {
+    // Balanced readability scoring (0-20 points) - adjusted for SEO-readability harmony
+    if (readabilityScore >= 70) {
       seoScore += 20;
-    } else if (readabilityScore >= 60) {
+    } else if (readabilityScore >= 50) {
       seoScore += 18;
-    } else if (readabilityScore >= 40) {
+    } else if (readabilityScore >= 35) {
       seoScore += 15;
     } else if (readabilityScore >= 20) {
-      seoScore += 10;
+      seoScore += 12;
     } else {
-      seoScore += 5;
+      seoScore += 8;
+    }
+    
+    // Readability-SEO balance bonus
+    if (totalKeywordOccurrences >= 2 && readabilityScore >= 50) {
+      seoScore += 5; // Bonus for maintaining readability with good keyword presence
     }
     
     // Content structure scoring (0-15 points)
@@ -294,7 +327,7 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       });
     }
 
-    // Enhanced keyword density feedback
+    // Balanced keyword and readability feedback
     if (totalKeywordOccurrences === 0) {
       optimizationTips.push({
         type: 'error',
@@ -308,22 +341,45 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
         description: `You have ${totalKeywordOccurrences} keywords. Consider adding more for better optimization`,
       });
     } else if (keywordDensity >= 1 && keywordDensity <= 4) {
-      optimizationTips.push({
-        type: 'success',
-        title: 'Excellent keyword optimization',
-        description: `Perfect keyword density of ${keywordDensity}% with ${totalKeywordOccurrences} strategic placements`,
-      });
+      if (readabilityScore >= 50) {
+        optimizationTips.push({
+          type: 'success',
+          title: 'Perfect SEO-readability balance',
+          description: `Excellent ${keywordDensity}% keyword density with ${readabilityScore} readability score`,
+        });
+      } else {
+        optimizationTips.push({
+          type: 'success',
+          title: 'Good keyword optimization',
+          description: `Solid ${keywordDensity}% keyword density. Content could be simplified for better readability`,
+        });
+      }
     } else if (keywordDensity > 4 && keywordDensity <= 6) {
       optimizationTips.push({
         type: 'warning',
         title: 'High keyword density',
-        description: `${keywordDensity}% density is acceptable but consider natural variation`,
+        description: `${keywordDensity}% density may impact readability. Consider more natural phrasing`,
       });
     } else {
       optimizationTips.push({
         type: 'error',
         title: 'Keyword stuffing detected',
-        description: 'Reduce keyword repetition to avoid search engine penalties',
+        description: 'Reduce keyword repetition to improve both SEO and readability',
+      });
+    }
+
+    // Readability-specific feedback
+    if (readabilityScore >= 70) {
+      optimizationTips.push({
+        type: 'success',
+        title: 'Excellent readability',
+        description: 'Your content is clear and easy to understand',
+      });
+    } else if (readabilityScore < 40) {
+      optimizationTips.push({
+        type: 'warning',
+        title: 'Improve readability',
+        description: 'Consider shorter sentences and simpler words for better user experience',
       });
     }
 
@@ -834,33 +890,27 @@ function createNaturalInsertion(words: string[], keyword: string, insertPos: num
   const keywordWords = keyword.split(' ');
   const prevWord = words[insertPos - 1]?.toLowerCase().replace(/[^\w]/g, '');
   const nextWord = words[insertPos]?.toLowerCase().replace(/[^\w]/g, '');
-  const prevTwoWords = words.slice(Math.max(0, insertPos - 2), insertPos).map(w => w.toLowerCase().replace(/[^\w]/g, '')).join(' ');
   
-  // Analyze context for natural integration patterns
+  // Simplified natural insertion patterns for better readability
   let insertion = [...keywordWords];
-  let needsConnector = false;
   
-  // Pattern 1: After verbs - add "and" for flow
-  const actionVerbs = ['provides', 'offers', 'includes', 'features', 'supports', 'delivers', 'ensures', 'creates', 'builds', 'develops'];
-  if (actionVerbs.includes(prevWord)) {
-    insertion = ['and', ...keywordWords];
-    needsConnector = true;
+  // Pattern 1: Simple conjunction for flow
+  const flowWords = ['and', 'or', 'but', 'so'];
+  if (prevWord && !flowWords.includes(prevWord) && !['the', 'a', 'an'].includes(prevWord)) {
+    // Add simple connecting words occasionally for variety
+    if (Math.random() > 0.7) {
+      insertion = ['and', ...keywordWords];
+    }
   }
   
-  // Pattern 2: Before relative pronouns - add descriptive flow
-  else if (['which', 'that', 'who', 'where'].includes(nextWord)) {
-    insertion = [...keywordWords, 'which'];
-    needsConnector = true;
+  // Pattern 2: After common prepositions - keep simple
+  else if (['for', 'with', 'about', 'through'].includes(prevWord)) {
+    insertion = [...keywordWords]; // Direct placement
   }
   
-  // Pattern 3: After prepositions - natural object placement
-  else if (['for', 'with', 'through', 'via', 'using'].includes(prevWord)) {
-    insertion = [...keywordWords]; // Direct placement after preposition
-  }
-  
-  // Pattern 4: In lists or series - add conjunction
-  else if (prevWord === 'and' || words[insertPos - 1]?.includes(',')) {
-    insertion = [...keywordWords]; // Natural list continuation
+  // Pattern 3: Start of sentences - capitalize appropriately
+  else if (insertPos === 0 || words[insertPos - 1]?.match(/[.!?]$/)) {
+    insertion = [keywordWords[0].charAt(0).toUpperCase() + keywordWords[0].slice(1), ...keywordWords.slice(1)];
   }
   
   // Pattern 5: At sentence transitions - add smooth connectors
@@ -868,32 +918,9 @@ function createNaturalInsertion(words: string[], keyword: string, insertPos: num
     insertion = [...keywordWords]; // Natural after transition words
   }
   
-  // Pattern 6: Before adjectives/descriptors - add emphasis
-  else if (nextWord && ['important', 'essential', 'crucial', 'vital', 'key', 'major', 'significant'].includes(nextWord)) {
-    insertion = [...keywordWords, 'and']; // Add "and" before important descriptors
-  }
-  
-  // Pattern 7: Topic continuation - natural expansion
-  else if (containsRelatedTerms(prevTwoWords, keyword)) {
-    insertion = ['including', ...keywordWords]; // Natural expansion of related topics
-    needsConnector = true;
-  }
-  
-  // Pattern 8: Default integration with grammatical awareness
+  // Default simple insertion for maximum readability
   else {
-    // Check if we need an article or connector
-    const firstKeywordWord = keywordWords[0].toLowerCase();
-    const startsWithVowel = /^[aeiou]/.test(firstKeywordWord);
-    
-    // Add article if keyword is a singular noun and context suggests it
-    if (keywordWords.length === 1 && isNoun(firstKeywordWord) && needsArticle(prevWord, nextWord)) {
-      const article = startsWithVowel ? 'an' : 'a';
-      insertion = [article, ...keywordWords];
-    }
-    // Add "and" for compound concepts
-    else if (prevWord && !['and', 'or', 'the', 'a', 'an'].includes(prevWord) && isContentWord(prevWord)) {
-      insertion = ['and', ...keywordWords];
-    }
+    insertion = [...keywordWords]; // Keep it simple to maintain readability
   }
   
   // Ensure proper capitalization at sentence beginnings
