@@ -50,6 +50,7 @@ export default function SEOAnalyzer() {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResponse | null>(null);
   const [insertedKeywords, setInsertedKeywords] = useState<string[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [insertionMode, setInsertionMode] = useState<'individual' | 'bulk'>('individual');
   const { toast } = useToast();
 
   const wordCount = countWords(content);
@@ -502,11 +503,38 @@ export default function SEOAnalyzer() {
                       {analysisResults.suggestedKeywords.filter(k => !k.inserted).length} available
                     </Badge>
                   </CardTitle>
+                  
+                  {/* Insertion Mode Selector */}
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Click any keyword to insert it naturally into your content
-                    </p>
-                    {analysisResults.suggestedKeywords.filter(k => !k.inserted).length > 1 && (
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm text-muted-foreground">Insertion mode:</span>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant={insertionMode === 'individual' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setInsertionMode('individual');
+                            setSelectedKeywords([]);
+                          }}
+                          className="text-xs"
+                        >
+                          Individual
+                        </Button>
+                        <Button
+                          variant={insertionMode === 'bulk' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setInsertionMode('bulk');
+                            setSelectedKeywords([]);
+                          }}
+                          className="text-xs"
+                        >
+                          Bulk Select
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {insertionMode === 'bulk' && analysisResults.suggestedKeywords.filter(k => !k.inserted).length > 1 && (
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -520,28 +548,67 @@ export default function SEOAnalyzer() {
                     )}
                   </div>
                   
-                  {selectedKeywords.length > 0 && (
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-blue-700 dark:text-blue-300">
-                          {selectedKeywords.length} keywords selected
-                        </span>
-                        <Button 
-                          size="sm"
-                          onClick={handleInsertSelectedKeywords}
-                          disabled={bulkInsertMutation.isPending || insertKeywordMutation.isPending}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          {bulkInsertMutation.isPending ? (
-                            <>
-                              <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-2"></div>
-                              Inserting...
-                            </>
-                          ) : (
-                            `Insert Selected (${selectedKeywords.length})`
-                          )}
-                        </Button>
-                      </div>
+                  <p className="text-sm text-muted-foreground">
+                    {insertionMode === 'individual' 
+                      ? "Click any keyword to insert it individually into your content"
+                      : "Select multiple keywords and insert them all at once"
+                    }
+                  </p>
+                  
+                  {/* Bulk insertion controls */}
+                  {insertionMode === 'bulk' && (
+                    <div className="mt-3 space-y-3">
+                      {selectedKeywords.length > 0 && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-blue-700 dark:text-blue-300">
+                              {selectedKeywords.length} keywords selected
+                            </span>
+                            <Button 
+                              size="sm"
+                              onClick={handleInsertSelectedKeywords}
+                              disabled={bulkInsertMutation.isPending || insertKeywordMutation.isPending}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              {bulkInsertMutation.isPending ? (
+                                <>
+                                  <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                                  Inserting...
+                                </>
+                              ) : (
+                                `Insert Selected (${selectedKeywords.length})`
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Quick insert all button */}
+                      {analysisResults.suggestedKeywords.filter(k => !k.inserted).length > 1 && (
+                        <div className="flex justify-center">
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const availableKeywords = analysisResults.suggestedKeywords
+                                .filter(k => !k.inserted)
+                                .map(k => k.term);
+                              bulkInsertMutation.mutate({ keywords: availableKeywords });
+                            }}
+                            disabled={bulkInsertMutation.isPending || insertKeywordMutation.isPending}
+                            className="border-green-200 text-green-700 hover:bg-green-50"
+                          >
+                            {bulkInsertMutation.isPending ? (
+                              <>
+                                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                                Inserting...
+                              </>
+                            ) : (
+                              `Insert All Available (${analysisResults.suggestedKeywords.filter(k => !k.inserted).length})`
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardHeader>
@@ -557,11 +624,18 @@ export default function SEOAnalyzer() {
                             ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                             : 'bg-muted hover:bg-accent border-transparent hover:border-border'
                         }`}
-                        onClick={() => !keyword.inserted && handleSelectKeyword(keyword.term)}
+                        onClick={() => {
+                          if (keyword.inserted) return;
+                          if (insertionMode === 'individual') {
+                            handleInsertKeyword(keyword.term);
+                          } else {
+                            handleSelectKeyword(keyword.term);
+                          }
+                        }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 flex items-center space-x-3">
-                            {!keyword.inserted && (
+                            {!keyword.inserted && insertionMode === 'bulk' && (
                               <input
                                 type="checkbox"
                                 checked={selectedKeywords.includes(keyword.term)}
@@ -598,31 +672,39 @@ export default function SEOAnalyzer() {
                               </div>
                             </div>
                           </div>
-                          <Button 
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleInsertKeyword(keyword.term);
-                            }}
-                            disabled={keyword.inserted || insertKeywordMutation.isPending || !content.trim()}
-                            variant={keyword.inserted ? "secondary" : "default"}
-                            className={`ml-3 transition-all duration-200 ${
-                              keyword.inserted 
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300' 
-                                : 'hover:scale-105'
-                            }`}
-                          >
-                            {insertKeywordMutation.isPending && insertKeywordMutation.variables?.keyword === keyword.term ? (
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-1"></div>
-                                Inserting...
-                              </div>
-                            ) : keyword.inserted ? (
-                              "✓ Inserted"
-                            ) : (
-                              "Insert"
-                            )}
-                          </Button>
+                          {insertionMode === 'individual' && (
+                            <Button 
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleInsertKeyword(keyword.term);
+                              }}
+                              disabled={keyword.inserted || insertKeywordMutation.isPending || !content.trim()}
+                              variant={keyword.inserted ? "secondary" : "default"}
+                              className={`ml-3 transition-all duration-200 ${
+                                keyword.inserted 
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300' 
+                                  : 'hover:scale-105'
+                              }`}
+                            >
+                              {insertKeywordMutation.isPending && insertKeywordMutation.variables?.keyword === keyword.term ? (
+                                <div className="flex items-center">
+                                  <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+                                  Inserting...
+                                </div>
+                              ) : keyword.inserted ? (
+                                "✓ Inserted"
+                              ) : (
+                                "Insert Now"
+                              )}
+                            </Button>
+                          )}
+                          
+                          {insertionMode === 'bulk' && !keyword.inserted && (
+                            <div className="ml-3 text-xs text-muted-foreground">
+                              {selectedKeywords.includes(keyword.term) ? "Selected for bulk insert" : "Click to select"}
+                            </div>
+                          )}
                         </div>
                         
                         {keyword.inserted && (

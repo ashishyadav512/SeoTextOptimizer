@@ -535,31 +535,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 function insertKeywordIntelligently(content: string, keyword: string, position?: number): string {
-  // More sophisticated duplicate checking - check for exact matches and overlapping phrases
-  const keywordLower = keyword.toLowerCase();
+  // Simplified and more accurate duplicate checking
+  const keywordLower = keyword.toLowerCase().trim();
   const contentLower = content.toLowerCase();
   
-  // Check for exact keyword match
-  const exactKeywordRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-  if (exactKeywordRegex.test(content)) {
-    console.log(`Keyword "${keyword}" already exists in content`);
-    return content;
-  }
-  
-  // Check for overlapping phrases to avoid redundant insertions
-  const keywordWords = keywordLower.split(' ');
-  if (keywordWords.length > 1) {
-    const isSubsetPresent = keywordWords.every(word => 
-      contentLower.includes(word) && contentLower.split(' ').includes(word)
-    );
-    
-    // If all words are already present as individual words, check if they're already in sequence
-    if (isSubsetPresent) {
-      const wordsInSequence = keywordWords.join(' ');
-      if (contentLower.includes(wordsInSequence)) {
-        console.log(`Keyword phrase "${keyword}" already exists as sequence in content`);
-        return content;
-      }
+  // For phrases (multiple words), check if exact phrase exists
+  if (keyword.includes(' ')) {
+    if (contentLower.includes(keywordLower)) {
+      console.log(`Keyword phrase "${keyword}" already exists in content`);
+      return content;
+    }
+  } else {
+    // For single words, use word boundary checking
+    const wordBoundaryRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    if (wordBoundaryRegex.test(content)) {
+      console.log(`Keyword "${keyword}" already exists in content`);
+      return content;
     }
   }
 
