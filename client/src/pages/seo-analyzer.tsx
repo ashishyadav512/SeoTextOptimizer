@@ -780,33 +780,33 @@ export default function SEOAnalyzer() {
 
         {/* Feature Highlights */}
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4">
-                <BarChart3 className="w-6 h-6 text-primary-foreground" />
+          <Card className="text-center glass-effect border-border/50 hover-glow">
+            <CardContent className="pt-8 pb-6">
+              <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <BarChart3 className="w-6 h-6 text-white" />
               </div>
-              <h4 className="text-lg font-semibold mb-2">Real-time Analysis</h4>
-              <p className="text-muted-foreground text-sm">Get instant SEO insights as you type with our advanced text analysis engine.</p>
+              <h4 className="text-lg font-semibold mb-2 text-foreground">Real-time Analysis</h4>
+              <p className="text-muted-foreground text-sm leading-relaxed">Get instant SEO insights with our advanced TextRazor-powered analysis engine.</p>
             </CardContent>
           </Card>
           
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+          <Card className="text-center glass-effect border-border/50 hover-glow">
+            <CardContent className="pt-8 pb-6">
+              <div className="w-12 h-12 gradient-success rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <h4 className="text-lg font-semibold mb-2">Smart Keyword Insertion</h4>
-              <p className="text-muted-foreground text-sm">Intelligently place keywords while maintaining natural flow and readability.</p>
+              <h4 className="text-lg font-semibold mb-2 text-foreground">Smart Keyword Insertion</h4>
+              <p className="text-muted-foreground text-sm leading-relaxed">Intelligently place keywords while maintaining natural flow and readability.</p>
             </CardContent>
           </Card>
           
-          <Card className="text-center">
-            <CardContent className="pt-6">
-              <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+          <Card className="text-center glass-effect border-border/50 hover-glow">
+            <CardContent className="pt-8 pb-6">
+              <div className="w-12 h-12 gradient-warning rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
-              <h4 className="text-lg font-semibold mb-2">Competitive Intelligence</h4>
-              <p className="text-muted-foreground text-sm">Discover what keywords and strategies top-ranking content uses in your niche.</p>
+              <h4 className="text-lg font-semibold mb-2 text-foreground">Professional Insights</h4>
+              <p className="text-muted-foreground text-sm leading-relaxed">Discover optimization opportunities and strategies for better search rankings.</p>
             </CardContent>
           </Card>
         </div>
