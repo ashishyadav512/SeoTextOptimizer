@@ -50,11 +50,16 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     if (keywords.length > 0) {
       keywords.slice(0, 8).forEach((keyword: any) => {
         if (keyword.text && keyword.text.trim()) {
+          // Check if API keyword already exists in content
+          const keywordExists = keyword.text.includes(' ') 
+            ? content.toLowerCase().includes(keyword.text.toLowerCase())
+            : new RegExp(`\\b${keyword.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi').test(content);
+          
           suggestedKeywords.push({
             term: keyword.text,
             volume: `${Math.floor(Math.random() * 5000 + 500)} searches/mo`,
             difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
-            inserted: false,
+            inserted: keywordExists,
           });
         }
       });
@@ -64,11 +69,16 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     const contentKeywords = extractCommonPhrases(content);
     contentKeywords.forEach((keyword: string) => {
       if (!suggestedKeywords.some(k => k.term.toLowerCase() === keyword.toLowerCase())) {
+        // Check if keyword already exists in content
+        const keywordExists = keyword.includes(' ') 
+          ? content.toLowerCase().includes(keyword.toLowerCase())
+          : new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi').test(content);
+        
         suggestedKeywords.push({
           term: keyword,
           volume: `${Math.floor(Math.random() * 3000 + 200)} searches/mo`,
           difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
-          inserted: false,
+          inserted: keywordExists,
         });
       }
     });
@@ -92,11 +102,14 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
         .map(([word]) => word);
 
       topWords.forEach((keyword: string) => {
+        // Check if fallback keyword already exists in content
+        const keywordExists = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi').test(content);
+        
         suggestedKeywords.push({
           term: keyword,
           volume: `${Math.floor(Math.random() * 2000 + 100)} searches/mo`,
           difficulty: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Medium' | 'High',
-          inserted: false,
+          inserted: keywordExists,
         });
       });
 
@@ -104,11 +117,13 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       if (suggestedKeywords.length === 0) {
         const genericKeywords = ['content optimization', 'SEO strategy', 'digital marketing', 'online presence', 'search visibility'];
         genericKeywords.slice(0, 3).forEach((keyword: string) => {
+          const keywordExists = content.toLowerCase().includes(keyword.toLowerCase());
+          
           suggestedKeywords.push({
             term: keyword,
             volume: `${Math.floor(Math.random() * 1500 + 50)} searches/mo`,
             difficulty: ['Low', 'Medium'][Math.floor(Math.random() * 2)] as 'Low' | 'Medium',
-            inserted: false,
+            inserted: keywordExists,
           });
         });
       }
@@ -140,15 +155,16 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       seoScore += 8;
     }
     
-    // Calculate keyword density first
+    // Calculate accurate keyword density based on actual keyword presence
     const totalKeywordOccurrences = suggestedKeywords.reduce((sum, keyword) => {
       const regex = new RegExp(`\\b${keyword.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       return sum + (content.match(regex) || []).length;
     }, 0);
     
+    // Count relevant repeated words for content quality assessment
     const importantWords = words.filter(word => 
-      word.length > 5 && 
-      !['the', 'and', 'that', 'have', 'for', 'not', 'with', 'you', 'this', 'but', 'his', 'from', 'they'].includes(word.toLowerCase())
+      word.length > 4 && 
+      !['the', 'and', 'that', 'have', 'for', 'not', 'with', 'you', 'this', 'but', 'his', 'from', 'they', 'will', 'can', 'should', 'could', 'would'].includes(word.toLowerCase())
     );
     
     const wordFrequency = new Map<string, number>();
@@ -157,21 +173,31 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       wordFrequency.set(lowerWord, (wordFrequency.get(lowerWord) || 0) + 1);
     });
     
-    const repeatedWords = Array.from(wordFrequency.entries()).filter(([_, count]) => count > 1);
-    const keywordDensity = Math.round(((totalKeywordOccurrences + repeatedWords.length) / Math.max(words.length, 1)) * 100 * 10) / 10;
+    const repeatedWords = Array.from(wordFrequency.entries()).filter(([_, count]) => count >= 2);
+    
+    // Improved keyword density calculation - focus on meaningful keywords
+    const keywordDensity = Math.round((totalKeywordOccurrences / Math.max(words.length, 1)) * 100 * 10) / 10;
 
-    // Keyword density scoring (0-20 points)
-    const idealDensity = 2.5; // 2-3% is optimal
-    const densityDiff = Math.abs(keywordDensity - idealDensity);
-    if (densityDiff <= 0.5) {
-      seoScore += 20;
-    } else if (densityDiff <= 1.5) {
-      seoScore += 15;
-    } else if (densityDiff <= 3) {
-      seoScore += 10;
+    // Enhanced keyword optimization scoring (0-25 points)
+    const keywordPresenceBonus = Math.min(totalKeywordOccurrences * 3, 15); // Bonus for having keywords
+    const qualityKeywordBonus = Math.min(repeatedWords.length * 2, 10); // Bonus for topic consistency
+    
+    let keywordScore = 0;
+    if (keywordDensity >= 1.5 && keywordDensity <= 4) {
+      keywordScore = 20; // Optimal range
+    } else if (keywordDensity >= 1 && keywordDensity < 1.5) {
+      keywordScore = 15; // Good range
+    } else if (keywordDensity >= 0.5 && keywordDensity < 1) {
+      keywordScore = 10; // Acceptable range
+    } else if (keywordDensity > 4 && keywordDensity <= 6) {
+      keywordScore = 12; // Slightly high but still good
+    } else if (keywordDensity > 6) {
+      keywordScore = 5; // Too high - keyword stuffing
     } else {
-      seoScore += 5;
+      keywordScore = 5; // Too low
     }
+    
+    seoScore += keywordScore + keywordPresenceBonus + qualityKeywordBonus;
     
     // Readability scoring (0-20 points)
     if (readabilityScore >= 80) {
@@ -195,6 +221,19 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
     if (hasLists) seoScore += 5;
     if (hasPunctuation) seoScore += 5;
     
+    // SEO optimization bonus for keyword-rich content (0-10 points)
+    let optimizationBonus = 0;
+    if (totalKeywordOccurrences >= 3) {
+      optimizationBonus += 5; // Bonus for having multiple keywords
+    }
+    if (keywordDensity >= 1.5 && keywordDensity <= 3.5) {
+      optimizationBonus += 5; // Bonus for optimal keyword density
+    }
+    if (repeatedWords.length >= 2) {
+      optimizationBonus += 3; // Bonus for topic consistency
+    }
+    
+    seoScore += Math.min(optimizationBonus, 10);
     seoScore = Math.min(100, Math.round(seoScore));
 
     // Generate optimization tips based on analysis
@@ -255,18 +294,45 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       });
     }
 
-    // Keyword density feedback
-    if (keywordDensity < 1) {
+    // Enhanced keyword density feedback
+    if (totalKeywordOccurrences === 0) {
+      optimizationTips.push({
+        type: 'error',
+        title: 'No keywords detected',
+        description: 'Add relevant keywords from the suggestions to improve SEO performance',
+      });
+    } else if (keywordDensity < 1) {
       optimizationTips.push({
         type: 'info',
-        title: 'Add more keywords',
-        description: 'Include relevant keywords to improve search visibility',
+        title: 'Good keyword foundation',
+        description: `You have ${totalKeywordOccurrences} keywords. Consider adding more for better optimization`,
       });
-    } else if (keywordDensity > 4) {
+    } else if (keywordDensity >= 1 && keywordDensity <= 4) {
+      optimizationTips.push({
+        type: 'success',
+        title: 'Excellent keyword optimization',
+        description: `Perfect keyword density of ${keywordDensity}% with ${totalKeywordOccurrences} strategic placements`,
+      });
+    } else if (keywordDensity > 4 && keywordDensity <= 6) {
       optimizationTips.push({
         type: 'warning',
-        title: 'Keyword density too high',
-        description: 'Reduce keyword repetition to avoid over-optimization',
+        title: 'High keyword density',
+        description: `${keywordDensity}% density is acceptable but consider natural variation`,
+      });
+    } else {
+      optimizationTips.push({
+        type: 'error',
+        title: 'Keyword stuffing detected',
+        description: 'Reduce keyword repetition to avoid search engine penalties',
+      });
+    }
+
+    // Content richness feedback
+    if (repeatedWords.length >= 3) {
+      optimizationTips.push({
+        type: 'success',
+        title: 'Rich topical content',
+        description: 'Your content shows good thematic consistency with varied vocabulary',
       });
     }
 
