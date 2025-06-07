@@ -114,29 +114,94 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       }
     }
 
-    // Calculate SEO score based on multiple factors
-    const hasGoodLength = words.length >= 300 && words.length <= 2000;
-    const hasGoodParagraphs = paragraphs.length >= 2 && paragraphs.every(p => p.split(/\s+/).length <= 150);
-    const hasKeywords = suggestedKeywords.length > 0;
-    const hasGoodReadability = readabilityScore >= 60;
-
-    const seoScore = Math.round(
-      (hasGoodLength ? 25 : 10) +
-      (hasGoodParagraphs ? 25 : 10) +
-      (hasKeywords ? 25 : 10) +
-      (hasGoodReadability ? 25 : readabilityScore * 0.25)
-    );
-
-    // Calculate keyword density
+    // Calculate comprehensive SEO score based on multiple factors
+    let seoScore = 0;
+    
+    // Content length scoring (0-25 points)
+    if (words.length >= 300 && words.length <= 2000) {
+      seoScore += 25;
+    } else if (words.length >= 150 && words.length < 300) {
+      seoScore += 20;
+    } else if (words.length >= 50 && words.length < 150) {
+      seoScore += 15;
+    } else if (words.length < 50) {
+      seoScore += 5;
+    } else { // > 2000 words
+      seoScore += 15;
+    }
+    
+    // Paragraph structure scoring (0-20 points)
+    const avgParagraphLength = paragraphs.reduce((sum, p) => sum + p.split(/\s+/).length, 0) / Math.max(paragraphs.length, 1);
+    if (paragraphs.length >= 2 && avgParagraphLength <= 150 && avgParagraphLength >= 30) {
+      seoScore += 20;
+    } else if (paragraphs.length >= 1 && avgParagraphLength <= 200) {
+      seoScore += 15;
+    } else {
+      seoScore += 8;
+    }
+    
+    // Calculate keyword density first
     const totalKeywordOccurrences = suggestedKeywords.reduce((sum, keyword) => {
-      const regex = new RegExp(keyword.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      const regex = new RegExp(`\\b${keyword.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       return sum + (content.match(regex) || []).length;
     }, 0);
-    const keywordDensity = Math.round((totalKeywordOccurrences / Math.max(words.length, 1)) * 100 * 10) / 10;
+    
+    const importantWords = words.filter(word => 
+      word.length > 5 && 
+      !['the', 'and', 'that', 'have', 'for', 'not', 'with', 'you', 'this', 'but', 'his', 'from', 'they'].includes(word.toLowerCase())
+    );
+    
+    const wordFrequency = new Map<string, number>();
+    importantWords.forEach(word => {
+      const lowerWord = word.toLowerCase();
+      wordFrequency.set(lowerWord, (wordFrequency.get(lowerWord) || 0) + 1);
+    });
+    
+    const repeatedWords = Array.from(wordFrequency.entries()).filter(([_, count]) => count > 1);
+    const keywordDensity = Math.round(((totalKeywordOccurrences + repeatedWords.length) / Math.max(words.length, 1)) * 100 * 10) / 10;
 
-    // Generate optimization tips
+    // Keyword density scoring (0-20 points)
+    const idealDensity = 2.5; // 2-3% is optimal
+    const densityDiff = Math.abs(keywordDensity - idealDensity);
+    if (densityDiff <= 0.5) {
+      seoScore += 20;
+    } else if (densityDiff <= 1.5) {
+      seoScore += 15;
+    } else if (densityDiff <= 3) {
+      seoScore += 10;
+    } else {
+      seoScore += 5;
+    }
+    
+    // Readability scoring (0-20 points)
+    if (readabilityScore >= 80) {
+      seoScore += 20;
+    } else if (readabilityScore >= 60) {
+      seoScore += 18;
+    } else if (readabilityScore >= 40) {
+      seoScore += 15;
+    } else if (readabilityScore >= 20) {
+      seoScore += 10;
+    } else {
+      seoScore += 5;
+    }
+    
+    // Content structure scoring (0-15 points)
+    const hasHeadings = content.match(/#{1,6}\s/g) || content.match(/^.+$/gm)?.some(line => line.length < 60 && line.length > 5);
+    const hasLists = content.includes('-') || content.includes('*') || /\d+\./g.test(content);
+    const hasPunctuation = sentences.length > 1;
+    
+    if (hasHeadings) seoScore += 5;
+    if (hasLists) seoScore += 5;
+    if (hasPunctuation) seoScore += 5;
+    
+    seoScore = Math.min(100, Math.round(seoScore));
+
+    // Generate optimization tips based on analysis
     const optimizationTips: OptimizationTip[] = [];
 
+    const hasGoodParagraphs = paragraphs.length >= 2 && avgParagraphLength <= 150 && avgParagraphLength >= 30;
+    
     if (hasGoodParagraphs) {
       optimizationTips.push({
         type: 'success',
@@ -151,7 +216,8 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       });
     }
 
-    if (content.match(/#{1,6}\s/g)) {
+    // Check for heading structure
+    if (content.match(/#{1,6}\s/g) || hasHeadings) {
       optimizationTips.push({
         type: 'success',
         title: 'Good heading structure',
@@ -165,6 +231,7 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
       });
     }
 
+    // Check for links
     if (content.includes('http') || content.includes('www.')) {
       optimizationTips.push({
         type: 'success',
@@ -176,6 +243,30 @@ async function analyzeSEOContent(content: string): Promise<AnalysisResponse> {
         type: 'error',
         title: 'Include internal links',
         description: 'Add 2-3 links to related content on your site',
+      });
+    }
+
+    // Content length feedback
+    if (words.length < 300) {
+      optimizationTips.push({
+        type: 'warning',
+        title: 'Increase content length',
+        description: 'Aim for at least 300 words for better SEO performance',
+      });
+    }
+
+    // Keyword density feedback
+    if (keywordDensity < 1) {
+      optimizationTips.push({
+        type: 'info',
+        title: 'Add more keywords',
+        description: 'Include relevant keywords to improve search visibility',
+      });
+    } else if (keywordDensity > 4) {
+      optimizationTips.push({
+        type: 'warning',
+        title: 'Keyword density too high',
+        description: 'Reduce keyword repetition to avoid over-optimization',
       });
     }
 
@@ -240,45 +331,90 @@ function extractCommonPhrases(content: string): string[] {
   const phrases: Map<string, number> = new Map();
   const singleWords: Map<string, number> = new Map();
   
-  // Skip common stop words
-  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'ours', 'theirs', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'now']);
+  // Comprehensive stop words list
+  const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'ours', 'theirs', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'now', 'also', 'then', 'first', 'get', 'make', 'go', 'see', 'come', 'take', 'know', 'time', 'year', 'work', 'well', 'way', 'day', 'man', 'new', 'want', 'use', 'good', 'look', 'right', 'old', 'still', 'big', 'great', 'long', 'own', 'say', 'here', 'out', 'up', 'about', 'into', 'over', 'think']);
   
-  // Count meaningful single words
+  // Count meaningful single words (prioritize nouns, verbs, adjectives)
   words.forEach(word => {
-    if (word.length > 3 && !stopWords.has(word)) {
+    if (word.length > 4 && !stopWords.has(word)) {
       singleWords.set(word, (singleWords.get(word) || 0) + 1);
     }
   });
   
-  // Extract 2-3 word phrases
+  // Extract meaningful 2-word phrases
   for (let i = 0; i < words.length - 1; i++) {
     if (words[i].length > 3 && words[i + 1].length > 3 && 
         !stopWords.has(words[i]) && !stopWords.has(words[i + 1])) {
       const phrase = `${words[i]} ${words[i + 1]}`;
-      phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
+      // Filter out generic phrases
+      if (!phrase.includes('will') && !phrase.includes('get') && !phrase.includes('make')) {
+        phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
+      }
     }
     
+    // Extract 3-word phrases for more specific keywords
     if (i < words.length - 2 && words[i].length > 3 && words[i + 1].length > 3 && words[i + 2].length > 3 &&
         !stopWords.has(words[i]) && !stopWords.has(words[i + 1]) && !stopWords.has(words[i + 2])) {
       const phrase = `${words[i]} ${words[i + 1]} ${words[i + 2]}`;
-      phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
+      if (phrase.length > 10 && !phrase.includes('will') && !phrase.includes('get')) {
+        phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
+      }
     }
   }
   
-  // Combine phrases and single words, prioritizing phrases
+  // Get high-quality phrase suggestions
   const phraseSuggestions = Array.from(phrases.entries())
-    .filter(([phrase, count]) => count >= 1 && phrase.length > 6)
+    .filter(([phrase, count]) => phrase.length > 8 && phrase.length < 35)
     .sort((a, b) => b[1] - a[1])
     .map(([phrase]) => phrase)
-    .slice(0, 6);
+    .slice(0, 5);
   
+  // Get distinctive single word suggestions
   const wordSuggestions = Array.from(singleWords.entries())
-    .filter(([word, count]) => count >= 2 && word.length > 4)
+    .filter(([word, count]) => count >= 1 && word.length > 5 && word.length < 15)
     .sort((a, b) => b[1] - a[1])
     .map(([word]) => word)
-    .slice(0, 4);
+    .slice(0, 3);
   
-  return [...phraseSuggestions, ...wordSuggestions].slice(0, 8);
+  // Combine and ensure diversity
+  const allSuggestions = [...phraseSuggestions, ...wordSuggestions];
+  
+  // Add contextual keywords based on content theme
+  const contextualKeywords = generateContextualKeywords(content);
+  
+  return [...allSuggestions, ...contextualKeywords].slice(0, 8);
+}
+
+function generateContextualKeywords(content: string): string[] {
+  const contentLower = content.toLowerCase();
+  const contextualKeywords: string[] = [];
+  
+  // Technology context
+  if (contentLower.includes('software') || contentLower.includes('digital') || contentLower.includes('technology')) {
+    contextualKeywords.push('digital solutions', 'technology innovation');
+  }
+  
+  // Business context
+  if (contentLower.includes('business') || contentLower.includes('company') || contentLower.includes('management')) {
+    contextualKeywords.push('business strategy', 'growth opportunities');
+  }
+  
+  // Health context
+  if (contentLower.includes('health') || contentLower.includes('fitness') || contentLower.includes('nutrition')) {
+    contextualKeywords.push('healthy lifestyle', 'wellness solutions');
+  }
+  
+  // Education context
+  if (contentLower.includes('learn') || contentLower.includes('education') || contentLower.includes('training')) {
+    contextualKeywords.push('learning experience', 'educational resources');
+  }
+  
+  // Marketing context
+  if (contentLower.includes('marketing') || contentLower.includes('brand') || contentLower.includes('customer')) {
+    contextualKeywords.push('brand awareness', 'customer engagement');
+  }
+  
+  return contextualKeywords.slice(0, 3);
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -340,23 +476,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
 
 function insertKeywordIntelligently(content: string, keyword: string, position?: number): string {
-  // Check if keyword already exists in content to avoid duplication
-  const keywordRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-  if (keywordRegex.test(content)) {
-    return content; // Don't insert if keyword already exists
+  // More sophisticated duplicate checking - check for exact matches and overlapping phrases
+  const keywordLower = keyword.toLowerCase();
+  const contentLower = content.toLowerCase();
+  
+  // Check for exact keyword match
+  const exactKeywordRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+  if (exactKeywordRegex.test(content)) {
+    console.log(`Keyword "${keyword}" already exists in content`);
+    return content;
+  }
+  
+  // Check for overlapping phrases to avoid redundant insertions
+  const keywordWords = keywordLower.split(' ');
+  if (keywordWords.length > 1) {
+    const isSubsetPresent = keywordWords.every(word => 
+      contentLower.includes(word) && contentLower.split(' ').includes(word)
+    );
+    
+    // If all words are already present as individual words, check if they're already in sequence
+    if (isSubsetPresent) {
+      const wordsInSequence = keywordWords.join(' ');
+      if (contentLower.includes(wordsInSequence)) {
+        console.log(`Keyword phrase "${keyword}" already exists as sequence in content`);
+        return content;
+      }
+    }
   }
 
   const sentences = content.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
   
   if (sentences.length === 0) {
-    return `${keyword} ${content}`;
+    return `${keyword}. ${content}`;
   }
   
   if (position !== undefined && position >= 0 && position < sentences.length) {
-    // Insert at specific position
     return insertKeywordInSentence(sentences, position, keyword);
   } else {
-    // Find best position automatically using multiple strategies
     const bestPosition = findOptimalInsertionPosition(sentences, keyword, content);
     return insertKeywordInSentence(sentences, bestPosition, keyword);
   }
