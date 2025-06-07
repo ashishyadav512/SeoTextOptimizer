@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { ScoreDisplay } from "@/components/ScoreDisplay";
+import { KeywordCard } from "@/components/KeywordCard";
+import { OptimizationTipCard } from "@/components/OptimizationTipCard";
 import { 
   CheckCircle, 
   AlertTriangle, 
@@ -19,7 +22,13 @@ import {
   RotateCcw,
   Sparkles,
   Search,
-  BarChart3
+  BarChart3,
+  FileText,
+  Zap,
+  Target,
+  ChevronRight,
+  Download,
+  Upload
 } from "lucide-react";
 
 interface KeywordSuggestion {
@@ -325,20 +334,29 @@ export default function SEOAnalyzer() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+      <header className="glass-effect sticky top-0 z-50 border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <Search className="w-5 h-5 text-primary-foreground" />
+              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-lg">
+                <Search className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-semibold text-foreground">SEO Text Analyzer</h1>
+              <div>
+                <h1 className="text-xl font-bold text-foreground">SEO Analyzer</h1>
+                <p className="text-xs text-muted-foreground">Professional Content Optimization</p>
+              </div>
             </div>
             <nav className="hidden md:flex items-center space-x-6">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Features</a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Pricing</a>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                <FileText className="w-4 h-4 mr-2" />
+                Features
+              </Button>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors">Support</a>
               <Button>Sign In</Button>
             </nav>
@@ -362,38 +380,72 @@ export default function SEOAnalyzer() {
           {/* Left Column - Input */}
           <div className="lg:col-span-3 space-y-6">
             {/* Text Input Card */}
-            <Card>
-              <CardHeader>
+            <Card className="glass-effect border-border/50 hover-glow">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <CardTitle>Content Input</CardTitle>
-                  <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                    <span>{wordCount} words</span>
-                    <span>{charCount} characters</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Content Input</CardTitle>
+                      <p className="text-sm text-muted-foreground">Paste your content for SEO analysis</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <Badge variant="outline" className="bg-background/50">
+                      {wordCount} words
+                    </Badge>
+                    <Badge variant="outline" className="bg-background/50">
+                      {charCount} chars
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Textarea
-                  placeholder="Paste your blog post, newsletter, tweet, or any content you want to optimize for SEO..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="min-h-80 resize-none"
-                />
+                <div className="relative">
+                  <Textarea
+                    placeholder="Paste your blog post, newsletter, tweet, or any content you want to optimize for SEO..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="min-h-80 resize-none bg-background/50 border-border/50 focus:border-primary/50 transition-all duration-300"
+                  />
+                  {content && (
+                    <div className="absolute top-3 right-3">
+                      <Badge className="bg-primary/10 text-primary border-primary/20">
+                        Ready for analysis
+                      </Badge>
+                    </div>
+                  )}
+                </div>
                 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center space-x-3">
-                    <Button variant="outline" onClick={handleClearText}>
-                      Clear Text
+                    <Button variant="outline" onClick={handleClearText} size="sm" className="hover-glow">
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Clear
                     </Button>
-                    <Button variant="outline" onClick={handlePasteFromClipboard}>
-                      Paste from Clipboard
+                    <Button variant="outline" onClick={handlePasteFromClipboard} size="sm" className="hover-glow">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Paste
                     </Button>
                   </div>
                   <Button 
                     onClick={handleAnalyze}
                     disabled={!content.trim() || analysisMutation.isPending}
+                    className="gradient-primary hover:opacity-90 transition-all duration-300 shadow-lg"
                   >
-                    {analysisMutation.isPending ? "Analyzing..." : "Analyze Content"}
+                    {analysisMutation.isPending ? (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4 mr-2" />
+                        Analyze Content
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -459,50 +511,64 @@ export default function SEOAnalyzer() {
           <div className="lg:col-span-2 space-y-6">
             {/* Analysis Overview */}
             {analysisResults && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <BarChart3 className="w-5 h-5 mr-2" />
-                    SEO Analysis
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Readability Score</span>
-                      <span className="text-2xl font-bold text-green-600">{analysisResults.readabilityScore}</span>
+              <Card className="glass-effect border-border/50 hover-glow">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-white" />
                     </div>
-                    <Progress value={analysisResults.readabilityScore} className="h-2" />
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">SEO Score</span>
-                      <span className="text-2xl font-bold text-primary">{analysisResults.seoScore}</span>
+                    <div>
+                      <CardTitle className="text-lg">SEO Analysis</CardTitle>
+                      <p className="text-sm text-muted-foreground">Content performance metrics</p>
                     </div>
-                    <Progress value={analysisResults.seoScore} className="h-2" />
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Keyword Density</span>
-                      <span className="text-2xl font-bold text-yellow-600">{analysisResults.keywordDensity}%</span>
-                    </div>
-                    <Progress value={analysisResults.keywordDensity * 20} className="h-2" />
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <ScoreDisplay
+                    label="Readability Score"
+                    score={analysisResults.readabilityScore}
+                    type="readability"
+                    icon={<Target className="w-5 h-5" />}
+                  />
+                  
+                  <ScoreDisplay
+                    label="SEO Score"
+                    score={analysisResults.seoScore}
+                    type="seo"
+                    icon={<TrendingUp className="w-5 h-5" />}
+                  />
+                  
+                  <ScoreDisplay
+                    label="Keyword Density"
+                    score={analysisResults.keywordDensity}
+                    maxScore={5}
+                    type="keyword"
+                    icon={<Zap className="w-5 h-5" />}
+                  />
                 </CardContent>
               </Card>
             )}
 
             {/* Keyword Suggestions */}
             {analysisResults?.suggestedKeywords && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      Recommended Keywords
+              <Card className="glass-effect border-border/50 hover-glow">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Keyword Suggestions</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {analysisResults.suggestedKeywords.filter(k => !k.inserted).length} opportunities available
+                        </p>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="bg-background/50">
                       {analysisResults.suggestedKeywords.filter(k => !k.inserted).length} available
                     </Badge>
-                  </CardTitle>
+                  </div>
                   
                   {/* Insertion Mode Selector */}
                   <div className="flex items-center justify-between">
@@ -612,118 +678,61 @@ export default function SEOAnalyzer() {
                     </div>
                   )}
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {analysisResults.suggestedKeywords.map((keyword, index) => (
-                      <div 
-                        key={index} 
-                        className={`group transition-all duration-200 p-3 rounded-lg border cursor-pointer ${
-                          keyword.inserted 
-                            ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
-                            : selectedKeywords.includes(keyword.term)
-                            ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
-                            : 'bg-muted hover:bg-accent border-transparent hover:border-border'
-                        }`}
-                        onClick={() => {
-                          if (keyword.inserted) return;
-                          if (insertionMode === 'individual') {
-                            handleInsertKeyword(keyword.term);
-                          } else {
-                            handleSelectKeyword(keyword.term);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 flex items-center space-x-3">
-                            {!keyword.inserted && insertionMode === 'bulk' && (
-                              <input
-                                type="checkbox"
-                                checked={selectedKeywords.includes(keyword.term)}
-                                onChange={() => handleSelectKeyword(keyword.term)}
-                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                              />
-                            )}
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <span className={`font-medium ${
-                                  keyword.inserted 
-                                    ? 'text-green-700 dark:text-green-300' 
-                                    : selectedKeywords.includes(keyword.term)
-                                    ? 'text-blue-700 dark:text-blue-300'
-                                    : ''
-                                }`}>
-                                  {keyword.term}
-                                </span>
-                                {keyword.inserted && (
-                                  <CheckCircle className="w-4 h-4 text-green-500" />
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-3 mt-1 text-xs text-muted-foreground">
-                                <span className="flex items-center">
-                                  <TrendingUp className="w-3 h-3 mr-1" />
-                                  {keyword.volume}
-                                </span>
-                                <Badge 
-                                  className={`${getDifficultyColor(keyword.difficulty)} text-xs`} 
-                                  variant="secondary"
-                                >
-                                  {keyword.difficulty} difficulty
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                          {insertionMode === 'individual' && (
-                            <Button 
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleInsertKeyword(keyword.term);
-                              }}
-                              disabled={keyword.inserted || insertKeywordMutation.isPending || !content.trim()}
-                              variant={keyword.inserted ? "secondary" : "default"}
-                              className={`ml-3 transition-all duration-200 ${
-                                keyword.inserted 
-                                  ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300' 
-                                  : 'hover:scale-105'
-                              }`}
-                            >
-                              {insertKeywordMutation.isPending && insertKeywordMutation.variables?.keyword === keyword.term ? (
-                                <div className="flex items-center">
-                                  <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin mr-1"></div>
-                                  Inserting...
-                                </div>
-                              ) : keyword.inserted ? (
-                                "✓ Inserted"
-                              ) : (
-                                "Insert Now"
-                              )}
-                            </Button>
-                          )}
-                          
-                          {insertionMode === 'bulk' && !keyword.inserted && (
-                            <div className="ml-3 text-xs text-muted-foreground">
-                              {selectedKeywords.includes(keyword.term) ? "Selected for bulk insert" : "Click to select"}
-                            </div>
-                          )}
+                <CardContent className="space-y-3">
+                  {analysisResults.suggestedKeywords.map((keyword, index) => (
+                    <KeywordCard
+                      key={index}
+                      keyword={keyword}
+                      onInsert={handleInsertKeyword}
+                      onToggleSelect={handleSelectKeyword}
+                      isSelected={selectedKeywords.includes(keyword.term)}
+                      isInserting={insertKeywordMutation.isPending && insertKeywordMutation.variables?.keyword === keyword.term}
+                    />
+                  ))}
+                  
+                  {/* Bulk Selection Controls */}
+                  {insertionMode === 'bulk' && selectedKeywords.length > 0 && (
+                    <div className="mt-4 p-4 glass-effect rounded-lg border border-primary/20">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-primary/10 text-primary border-primary/20">
+                            {selectedKeywords.length} selected
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            Ready for bulk insertion
+                          </span>
                         </div>
-                        
-                        {keyword.inserted && (
-                          <div className="mt-2 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
-                            Successfully added to your content
-                          </div>
-                        )}
+                        <Button 
+                          onClick={handleInsertSelectedKeywords}
+                          disabled={bulkInsertMutation.isPending}
+                          className="gradient-primary hover:opacity-90"
+                          size="sm"
+                        >
+                          {bulkInsertMutation.isPending ? (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                              Inserting...
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-4 h-4 mr-2" />
+                              Insert Selected
+                            </>
+                          )}
+                        </Button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                   
                   {analysisResults.suggestedKeywords.filter(k => k.inserted).length > 0 && (
-                    <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                      <div className="flex items-center text-sm text-green-700 dark:text-green-300">
-                        <CheckCircle className="w-4 h-4 mr-2" />
+                    <div className="mt-4 p-4 gradient-success rounded-lg text-white">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5" />
                         <span className="font-medium">
-                          {analysisResults.suggestedKeywords.filter(k => k.inserted).length} keywords added
+                          {analysisResults.suggestedKeywords.filter(k => k.inserted).length} keywords successfully added
                         </span>
-                        <span className="ml-2 text-green-600 dark:text-green-400">
+                        <ChevronRight className="w-4 h-4" />
+                        <span>
                           +{Math.round(analysisResults.suggestedKeywords.filter(k => k.inserted).length * 3.8)}% SEO boost
                         </span>
                       </div>
@@ -735,36 +744,33 @@ export default function SEOAnalyzer() {
 
             {/* Optimization Tips */}
             {analysisResults?.optimizationTips && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <TrendingUp className="w-5 h-5 mr-2" />
-                    Optimization Tips
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analysisResults.optimizationTips.map((tip, index) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        {getTipIcon(tip.type)}
-                        <div>
-                          <p className="text-sm font-medium">{tip.title}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{tip.description}</p>
-                        </div>
-                      </div>
-                    ))}
+              <Card className="glass-effect border-border/50 hover-glow">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Optimization Tips</CardTitle>
+                      <p className="text-sm text-muted-foreground">Actionable recommendations</p>
+                    </div>
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {analysisResults.optimizationTips.map((tip, index) => (
+                    <OptimizationTipCard key={index} tip={tip} />
+                  ))}
                 </CardContent>
               </Card>
             )}
 
             {/* Loading state */}
             {analysisMutation.isPending && (
-              <Card>
+              <Card className="glass-effect border-border/50">
                 <CardContent className="pt-6">
-                  <div className="flex items-center space-x-2">
-                    <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                    <span>Analyzing your content...</span>
+                  <div className="flex items-center justify-center space-x-3 py-8">
+                    <Sparkles className="w-6 h-6 animate-spin text-primary" />
+                    <span className="text-lg font-medium">Analyzing your content...</span>
                   </div>
                 </CardContent>
               </Card>
