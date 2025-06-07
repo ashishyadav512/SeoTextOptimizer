@@ -47,6 +47,9 @@ An advanced React-based SEO text analysis tool that provides intelligent, real-t
 - **In-memory storage** for session data
 - **RESTful API** architecture
 
+### Analysis
+- **TextRazor API** for natural language processing and semantic analysis
+
 ### Development Tools
 - **Vite** for development and building
 - **ESBuild** for fast compilation
